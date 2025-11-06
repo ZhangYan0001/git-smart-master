@@ -13,7 +13,7 @@
 param(
     [string]$InstallPath = "C:\Tools\git-smart"
 )
-
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Write-Host " Git Smart Wrapper 安装程序" -ForegroundColor Cyan
 Write-Host "==============================================="
 
@@ -100,28 +100,33 @@ Write-Host " 已生成动态路径版: git.cmd" -ForegroundColor Green
 $IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).
     IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 
-# 获取 PATH 环境变量
+# -----------------------------
+# 安全添加 PATH（兼容 Cmder）
+# -----------------------------
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 $level = if ($IsAdmin) { "Machine" } else { "User" }
-$envPaths = [System.Environment]::GetEnvironmentVariable("Path", $level).Split(";") | Where-Object { $_ -ne "" }
+
+# 读取现有 PATH，并过滤掉空项与重复项
+$rawPaths = [System.Environment]::GetEnvironmentVariable("Path", $level)
+$envPaths = $rawPaths -split ';' | Where-Object { $_ -and ($_ -ne '') } | Select-Object -Unique
 
 if ($envPaths -notcontains $InstallPath) {
-    if ($IsAdmin) {
-        Write-Host "`n正在添加到系统 PATH..." -ForegroundColor Cyan
-    } else {
-        Write-Host "`n当前非管理员，正在添加到用户 PATH..." -ForegroundColor Yellow
-    }
+    Write-Host "`n正在安全添加到 PATH..." -ForegroundColor Cyan
 
-    $newPath = [String]::Join(";", $envPaths + $InstallPath)
+    $newPathList = $envPaths + $InstallPath
+    $newPath = ($newPathList -join ';').TrimEnd(';')
+
     try {
         [System.Environment]::SetEnvironmentVariable("Path", $newPath, $level)
-        Write-Host "已添加到 $level PATH: $InstallPath" -ForegroundColor Green
+        Write-Host " 已成功添加到 $level PATH: $InstallPath" -ForegroundColor Green
+        Write-Host " 若你使用 Cmder，请重启 Cmder 以重新加载 PATH。" -ForegroundColor Yellow
     } catch {
-        Write-Host "添加 PATH 失败，请以管理员身份运行 PowerShell。" -ForegroundColor Red
+        Write-Host " 添加 PATH 失败，请尝试以管理员身份运行 PowerShell。" -ForegroundColor Red
     }
 } else {
     Write-Host "`nPATH 中已包含: $InstallPath" -ForegroundColor Yellow
 }
-
 
 # -----------------------------
 #  验证安装结果
